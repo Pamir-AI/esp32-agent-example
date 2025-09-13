@@ -1,0 +1,403 @@
+# ESP32-S3-Matrix Development Guide for Agentic Use
+
+## Hardware Specifications
+
+### Board Details
+- **Model**: Waveshare ESP32-S3-Matrix
+- **Processor**: ESP32-S3 dual-core Xtensa LX7 @ 240MHz  
+- **Memory**: 512KB SRAM, 4MB Flash
+- **USB Port**: `/dev/ttyACM0` or `/dev/ttyACM1` (check with `ls /dev/ttyACM*`)
+
+### Hardware Components
+- **LED Matrix**: 8x8 WS2812B RGB LED Matrix
+  - Control Pin: GPIO 14
+  - Total LEDs: 64
+  - Wiring: Serpentine pattern (odd rows reversed)
+  - Safe Brightness: 60/255 maximum (higher causes overheating)
+  
+- **IMU Sensor**: QMI8658 (6-axis accelerometer/gyroscope)
+  - I2C Interface: SDA=GPIO 11, SCL=GPIO 12
+  - Used for tilt detection and motion control
+
+## Setup Procedures
+
+### 1. Arduino CLI Installation
+```bash
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+export PATH="$PWD/bin:$PATH"
+```
+
+### 2. ESP32 Core Configuration
+```bash
+arduino-cli config init
+arduino-cli core update-index
+arduino-cli core install esp32:esp32@2.0.11
+```
+
+### 3. Required Libraries
+```bash
+arduino-cli lib install "Adafruit NeoPixel" "Adafruit NeoMatrix" "Adafruit GFX Library" "FastLED" "SensorLib"
+```
+
+### 4. Compilation and Upload Commands
+```bash
+# CRITICAL: ESP32-S3 requires USB CDC for serial communication
+# Compile with CDC enabled
+arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc <folder_name>/
+
+# Upload with CDC enabled
+arduino-cli upload --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --port /dev/ttyACM0 <folder_name>/
+
+# Monitor serial output
+arduino-cli monitor --port /dev/ttyACM0 --config baudrate=115200
+```
+
+### 5. Manual Upload Mode (if automatic fails, make sure to ask and wait for user to manual execute this)
+1. Hold BOOT button
+2. Press RESET button
+3. Release RESET
+4. Release BOOT
+5. Run upload command
+
+## Project Features and Implementations Example
+
+### Snake Game Implementation
+
+**Location**: `examples/Snake/Snake.ino`
+
+**Key Features**:
+- 8x8 LED matrix gameplay with tilt controls via IMU
+- Snake grows when eating food (red dots)
+- Dynamic speed increase (300ms → 100ms min) as snake grows
+- Edge wrapping (snake can traverse walls)
+- Automatic game restart after collision
+- Score tracking via serial output
+
+**Control Mapping**:
+- Tilt right (negative Y acceleration): Move right
+- Tilt left (positive Y acceleration): Move left
+- Tilt forward (positive X acceleration): Move down
+- Tilt backward (negative X acceleration): Move up
+
+**Implementation Details**:
+```cpp
+// Direction constants
+// 0=up, 1=right, 2=down, 3=left
+
+// IMU threshold for movement detection
+if(Accel.x > 0.15 || Accel.y > 0.15) {
+  // Accumulate movement time for direction change
+}
+
+// Speed adjustment formula
+moveInterval = max(100, 300 - (GetSnakeLength() - 3) * 10);
+
+// Prevent 180-degree turns
+if ((currentDirection == 0 && newDirection == 2) || 
+    (currentDirection == 2 && newDirection == 0)) {
+  // Invalid move, maintain direction
+}
+```
+
+**Color Scheme**:
+- Snake head: Bright green (higher intensity)
+- Snake body: Dimmer green (lower intensity)
+- Food: Red
+- Game over: Red flash animation
+
+### WiFi Signal Strength Visualizer
+
+**Location**: `wifi-slam/wifi-slam.ino`
+
+**Key Features**:
+- Real-time WiFi RSSI visualization on 8x8 matrix
+- Full-spectrum color gradient (blue=weak, red=strong)
+- Target network locking with BSSID tracking
+- Single-channel scanning optimization
+- Median filter + EMA smoothing for stable readings
+
+**State Machine**:
+```cpp
+enum SystemState {
+  STATE_DISCOVERY,  // Initial network scan
+  STATE_SCANNING,   // Searching for network
+  STATE_LOCKED,     // Tracking specific BSSID
+  STATE_LOST        // Network connection lost
+};
+```
+
+**Signal Processing**:
+```cpp
+// RSSI Configuration
+#define RSSI_MIN    -80    // Weak signal threshold
+#define RSSI_MAX    -40    // Strong signal threshold
+#define EMA_ALPHA   0.1    // Smoothing factor
+
+// Median filter (5 samples) + EMA smoothing
+float smoothRSSI(int rawRSSI) {
+  // Apply median filter first
+  medianValue = getMedian(rssiBuffer, MEDIAN_SAMPLES);
+  // Then apply EMA
+  rssiEMA = (EMA_ALPHA * medianValue) + ((1 - EMA_ALPHA) * rssiEMA);
+}
+```
+
+**Color Mapping Algorithm**:
+```cpp
+// Map RSSI to HSV color space (240° blue → 0° red)
+float hue = (1.0 - normalized_rssi) * 240.0;
+// Convert HSV to RGB for LED display
+```
+
+**Visual States**:
+- Discovery/Scanning: Blinking amber
+- Locked: RSSI-based gradient color
+- Signal Lost: Gray flash → return to scanning
+
+## LED Matrix Visualization & Debugging
+
+### Real-time Terminal Visualization
+```bash
+# Visualize LED matrix in terminal (requires USB CDC enabled)
+python3 tools/led_matrix_viz.py -p /dev/ttyACM0 -b 115200 --width 8 --height 8
+
+# ASCII mode for clearer display
+python3 tools/led_matrix_viz.py -p /dev/ttyACM0 -b 115200 --width 8 --height 8 --ascii
+```
+
+### Arduino Frame Data Format
+```cpp
+// Send frame data for visualization tool
+void sendFrameCSV() {
+  Serial.print("FRAME:");
+  for (int i = 0; i < 64; i++) {
+    char buf[8];
+    sprintf(buf, "%02X%02X%02X,", leds[i].r, leds[i].g, leds[i].b);
+    Serial.print(buf);
+  }
+  Serial.println();
+}
+// Call this in loop() every 100-200ms for smooth visualization
+```
+
+## LED Matrix Programming
+
+### Coordinate System
+```cpp
+// Convert X,Y to LED index for serpentine wiring
+uint16_t XY(uint8_t x, uint8_t y) {
+  if (y & 0x01) {
+    // Odd rows run backwards
+    return (y * MATRIX_WIDTH) + (MATRIX_WIDTH - 1 - x);
+  } else {
+    // Even rows run forwards
+    return (y * MATRIX_WIDTH) + x;
+  }
+}
+```
+
+### Common Operations
+```cpp
+// Fill entire matrix
+void fillMatrix(uint8_t r, uint8_t g, uint8_t b) {
+  CRGB color = CRGB(r, g, b);
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = color;
+  }
+  FastLED.show();
+}
+
+// Set individual pixel
+leds[XY(x, y)] = CRGB(r, g, b);
+FastLED.show();
+```
+
+## IMU Sensor Usage
+
+### Initialization
+```cpp
+#include "WS_QMI8658.h"
+QMI8658_Init();
+```
+
+### Reading Data
+```cpp
+extern IMUdata Accel;
+QMI8658_Loop();  // Update readings
+
+// Access values
+float x_accel = Accel.x;  // Range: -1.0 to 1.0
+float y_accel = Accel.y;
+float z_accel = Accel.z;
+```
+
+### Tilt Detection Pattern
+```cpp
+// Threshold-based detection with accumulation
+if(Accel.x > 0.15) {
+  Time_X_A += Accel.x * 10;  // Accumulate tilt time
+}
+if(Time_X_A >= 10) {
+  // Trigger action
+  Time_X_A = 0;  // Reset accumulator
+}
+```
+
+## Library Compatibility Notes
+
+### SensorLib API Changes
+Remove 4th parameter from configuration calls:
+```cpp
+// Old (may fail)
+configAccelerometer(range, rate, filter, selfTest);
+
+// New (use this)
+configAccelerometer(range, rate, filter);
+```
+
+### FastLED Configuration
+```cpp
+#include <FastLED.h>
+#define LED_PIN 14
+#define NUM_LEDS 64
+CRGB leds[NUM_LEDS];
+
+void setup() {
+  FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.setBrightness(60);  // Safety limit
+}
+```
+
+## Development Patterns
+
+### Game Loop Structure
+```cpp
+void loop() {
+  unsigned long currentTime = millis();
+  
+  // 1. Read inputs (IMU, buttons, etc.)
+  QMI8658_Loop();
+  
+  // 2. Update game state at fixed intervals
+  if (currentTime - lastUpdateTime >= updateInterval) {
+    updateGameState();
+    lastUpdateTime = currentTime;
+  }
+  
+  // 3. Render to display
+  updateDisplay();
+  
+  // 4. Small delay for stability
+  delay(10);
+}
+```
+
+### Network Scanning Pattern
+```cpp
+// Discovery phase
+int numNetworks = WiFi.scanNetworks();
+for (int i = 0; i < numNetworks; i++) {
+  if (WiFi.SSID(i) == TARGET_SSID) {
+    // Store BSSID and channel
+    memcpy(targetBSSID, WiFi.BSSID(i), 6);
+    targetChannel = WiFi.channel(i);
+  }
+}
+
+// Tracking phase (optimized)
+WiFi.scanNetworks(false, false, false, 300, targetChannel);
+```
+
+## Safety Guidelines
+
+### Temperature Management
+- **Maximum LED Brightness**: 60/255
+- **Monitoring**: Check board temperature during extended use
+- **Mitigation**: Reduce brightness or add delays if overheating
+
+### Power Considerations
+- USB provides sufficient power for normal operation
+- Avoid all LEDs at full white/brightness simultaneously
+- Consider power cycling between intensive operations
+
+## Troubleshooting Procedures
+
+### Upload Issues
+1. Check USB cable quality and connection
+2. Verify port: `ls /dev/ttyACM*`
+3. Add user to dialout group: `sudo usermod -a -G dialout $USER`
+4. Use manual BOOT+RESET sequence
+5. Try different USB port or cable
+
+### Compilation Errors
+1. Verify ESP32 board package version (2.0.11)
+2. Check library compatibility
+3. Remove deprecated API parameters
+4. Ensure all required libraries installed
+
+### Runtime Issues
+1. Monitor serial output at 115200 baud
+2. Check LED brightness settings (≤60)
+3. Verify IMU I2C connections
+4. Confirm GPIO pin assignments
+
+## Quick Reference Commands
+
+```bash
+# IMPORTANT: Always use CDCOnBoot=cdc for ESP32-S3 serial communication
+
+# Compile with USB CDC enabled
+arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc <folder>/
+
+# Upload (port may be /dev/ttyACM0 or /dev/ttyACM1)
+arduino-cli upload --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --port /dev/ttyACM0 <folder>/
+
+# Monitor serial output
+arduino-cli monitor --port /dev/ttyACM0 --config baudrate=115200
+
+# Visualize LED matrix in terminal
+python3 tools/led_matrix_viz.py -p /dev/ttyACM0 -b 115200 --width 8 --height 8
+
+# Manual boot mode if upload fails
+# Hold BOOT → Press RESET → Release RESET → Release BOOT → Upload
+```
+
+## Project Structure
+```
+Esp32/
+├── bin/                # Arduino CLI binary
+├── examples/              
+│   ├── Snake/          # Tilt-controlled snake game
+│   ├── tilt-demo/      # Original tilt demo
+│   └── wifi-slam/      # WiFi signal visualizer 
+├── apps/               # new apps go here
+└── Claude.md           # This comprehensive guide
+```
+
+## Implementation Checklist
+
+### New Game Development
+- [ ] Include brightness safety limit (≤60)
+- [ ] Initialize FastLED with correct pin (GPIO 14)
+- [ ] Implement serpentine XY mapping for matrix
+- [ ] Add IMU initialization if using tilt controls
+- [ ] Include serial debugging output
+- [ ] Test temperature during extended play
+- [ ] Implement proper timing loops
+- [ ] Add state machine for game flow
+
+### Network Project Development
+- [ ] Set WiFi mode to STA
+- [ ] Implement discovery scan for target network
+- [ ] Store BSSID for specific AP tracking
+- [ ] Use channel-specific scanning when possible
+- [ ] Apply signal smoothing (median + EMA)
+- [ ] Map RSSI to meaningful visualization
+- [ ] Handle network loss gracefully
+- [ ] Provide status indicators for states
+
+## Additional Resources
+- [Waveshare Wiki](https://www.waveshare.com/wiki/ESP32-S3-Matrix)
+- [ESP32-S3 Datasheet](https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf)
+- [FastLED Documentation](http://fastled.io/)
+- [Arduino CLI Reference](https://arduino.github.io/arduino-cli/)
