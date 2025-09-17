@@ -101,3 +101,4 @@ Repo Highlights
 DEBUGING ISSUES
 - when automatic upload fails, always ask for user to manual put device into bootloader mode, then wait for confirm before reflush again
 - MicroPython Board in FS mode is a pico device (which belong to the internal system), you should see ESP devie when you try lsusb, if not remind user to try replug in usb
+- if ./bin/arduino-cli core install dependency taking too long, you can extend the timeout via ./bin/arduino-cli config set network.connection_timeout 600s 
