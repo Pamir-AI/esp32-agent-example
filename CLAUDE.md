@@ -53,26 +53,30 @@ void loop() {
 }
 ```
 
-3) Visualize In Terminal (No GUI)
+3) Visualize In Terminal (Use only when trying to debug)
 - Auto‑detect port, auto‑configure from META:
   - `python3 tools/led_matrix_viz.py --list-ports`
   - `python3 tools/led_matrix_viz.py -p /dev/ttyACM? -b 115200 --stats --verbose`
 - If you don’t print META, pass flags: `--width/--height --input-order xy --wiring progressive --rotate ...`
 - Tips: `--ascii` for plain text, `--flip-x/--flip-y` for quick checks.
 
-4) Build / Flash (ESP32‑S3)
-- In Arduino IDE: Tools → USB CDC On Boot = Enabled (prevents Serial from blocking).
+4) Build / Flash (ESP32‑S3) **IMPORTANT MAKE SURE TO FOLLOW**
+- use USB CDC On Boot = Enabled (prevents Serial from blocking) if you need to debug Serial.
 - Use the bundled CLI at `./bin/arduino-cli`:
   - First‑time setup (once):
     - `./bin/arduino-cli config init`
     - `./bin/arduino-cli core update-index`
-    - `./bin/arduino-cli core install esp32:esp32`
+  - Prepare the dependency for esp32 
+    - `./bin/arduino-cli config set network.connection_timeout 1000s` Increase the timeout for the big download, WARN USER this gonna take some time, possible (10-20min), so need to be patient.
+    - `GODEBUG=http2client=0 ./bin/arduino-cli --log-level debug core install esp32:esp32` (Force HTTP/1.1 bypasses the flaky HTTP/2 path)
   - Compile (example: Snake):
     - `./bin/arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc examples/Snake`
   - Upload:
+    - **IMPORTANT find the correct port by checking lsusb first** 
     - `./bin/arduino-cli upload --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --port /dev/ttyACM0 examples/Snake`
   - Monitor:
     - `./bin/arduino-cli monitor --port /dev/ttyACM0 --config baudrate=115200`
+  - NOTE : you should not suggest user to use Arduino IDE to upload, they cli tool given to you should be very suffcient.
 
 5) Proven Debug Workflow
 - Keep Serial optional: short wait, then guard prints with `if (Serial)`.
@@ -101,4 +105,3 @@ Repo Highlights
 DEBUGING ISSUES
 - when automatic upload fails, always ask for user to manual put device into bootloader mode, then wait for confirm before reflush again
 - MicroPython Board in FS mode is a pico device (which belong to the internal system), you should see ESP devie when you try lsusb, if not remind user to try replug in usb
-- if ./bin/arduino-cli core install dependency taking too long, you can extend the timeout via ./bin/arduino-cli config set network.connection_timeout 600s 
