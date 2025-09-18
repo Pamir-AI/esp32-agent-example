@@ -69,6 +69,7 @@ void loop() {
   - Prepare the dependency for esp32 
     - `./bin/arduino-cli config set network.connection_timeout 1000s` Increase the timeout for the big download, WARN USER this gonna take some time, possible (10-20min), so need to be patient.
     - `GODEBUG=http2client=0 ./bin/arduino-cli --log-level debug core install esp32:esp32` (Force HTTP/1.1 bypasses the flaky HTTP/2 path)
+    - Wait for the download to finish, dont put it background, do this step linearly.
   - Compile (example: Snake):
     - `./bin/arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc examples/Snake`
   - Upload:
