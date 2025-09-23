@@ -53,15 +53,8 @@ void loop() {
 }
 ```
 
-3) Visualize In Terminal (Use only when trying to debug)
-- Auto‑detect port, auto‑configure from META:
-  - `python3 tools/led_matrix_viz.py --list-ports`
-  - `python3 tools/led_matrix_viz.py -p /dev/ttyACM? -b 115200 --stats --verbose`
-- If you don’t print META, pass flags: `--width/--height --input-order xy --wiring progressive --rotate ...`
-- Tips: `--ascii` for plain text, `--flip-x/--flip-y` for quick checks.
-
-4) Build / Flash (ESP32‑S3) **IMPORTANT MAKE SURE TO FOLLOW**
-- use USB CDC On Boot = Enabled (prevents Serial from blocking) if you need to debug Serial.
+3) Build / Flash (ESP32‑S3) **IMPORTANT MAKE SURE TO FOLLOW**
+-USB CDC On Boot = Enabled (prevents Serial from blocking) use and only use if you need to debug Serial.
 - Use the bundled CLI at `./bin/arduino-cli`:
   - First‑time setup (once):
     - `./bin/arduino-cli config init`
@@ -78,6 +71,13 @@ void loop() {
   - Monitor:
     - `./bin/arduino-cli monitor --port /dev/ttyACM0 --config baudrate=115200`
   - NOTE : you should not suggest user to use Arduino IDE to upload, they cli tool given to you should be very suffcient.
+
+4) Visualize In Terminal (Use only when trying to debug)
+- Auto‑detect port, auto‑configure from META:
+  - `python3 tools/led_matrix_viz.py --list-ports`
+  - `python3 tools/led_matrix_viz.py -p /dev/ttyACM? -b 115200 --stats --verbose`
+- If you don’t print META, pass flags: `--width/--height --input-order xy --wiring progressive --rotate ...`
+- Tips: `--ascii` for plain text, `--flip-x/--flip-y` for quick checks.
 
 5) Proven Debug Workflow
 - Keep Serial optional: short wait, then guard prints with `if (Serial)`.
