@@ -1,9 +1,9 @@
 ESP32‑S3 Matrix — Fast Path for New Games + Debug
 
-This repo lets anyone build a new LED‑matrix game quickly, visualize it in a terminal, and keep hardware + tools in sync. Follow this flow and you’re productive on day one.
+This repo lets anyone build a new LED‑matrix game quickly, visualize it in a terminal, and keep hardware + tools in sync. Follow this flow and you're productive on day one.
 
 1) Configure The Board Once
-- Edit `config/BoardConfig.h` (single source of truth):
+- Edit `lib/BoardConfig/BoardConfig.h` (single source of truth):
   - `MATRIX_WIDTH/HEIGHT` (default 8x8)
   - `LED_PIN` (default 14) and `BRIGHTNESS_LIMIT` (≤ 60)
   - `COLOR_ORDER` (use `RGB` for Waveshare ESP32‑S3‑Matrix)
@@ -11,9 +11,12 @@ This repo lets anyone build a new LED‑matrix game quickly, visualize it in a t
 - All games include this file; change it once and everything follows.
 
 2) Use The Shared Helpers
-- Include in your sketch:
-  - `#include "config/BoardConfig.h"`
-  - `#include "lib/MatrixUtil/MatrixUtil.h"`
+- Include in your sketch (`src/main.cpp`):
+  ```cpp
+  #include <FastLED.h>
+  #include <BoardConfig.h>
+  #include <MatrixUtil.h>
+  ```
 - What you get:
   - `MU_XY(x,y)`: stable XY→index mapping honoring the board profile
   - `MU_ADD_LEDS(DATA_PIN, leds, count)`: FastLED init using shared `COLOR_ORDER`
@@ -23,9 +26,10 @@ This repo lets anyone build a new LED‑matrix game quickly, visualize it in a t
 
 Minimal New‑Game Template
 ```cpp
+// src/main.cpp
 #include <FastLED.h>
-#include "config/BoardConfig.h"
-#include "lib/MatrixUtil/MatrixUtil.h"
+#include <BoardConfig.h>
+#include <MatrixUtil.h>
 
 #define NUM_LEDS (MATRIX_WIDTH * MATRIX_HEIGHT)
 CRGB leds[NUM_LEDS];
@@ -57,36 +61,108 @@ void loop() {
 - Auto‑detect port, auto‑configure from META:
   - `python3 tools/led_matrix_viz.py --list-ports`
   - `python3 tools/led_matrix_viz.py -p /dev/ttyACM? -b 115200 --stats --verbose`
-- If you don’t print META, pass flags: `--width/--height --input-order xy --wiring progressive --rotate ...`
+- If you don't print META, pass flags: `--width/--height --input-order xy --wiring progressive --rotate ...`
 - Tips: `--ascii` for plain text, `--flip-x/--flip-y` for quick checks.
 
-4) Build / Flash (ESP32‑S3) **IMPORTANT MAKE SURE TO FOLLOW**
-- use USB CDC On Boot = Enabled (prevents Serial from blocking) if you need to debug Serial.
-- Use the bundled CLI at `./bin/arduino-cli`:
-  - First‑time setup (once):
-    - `./bin/arduino-cli config init`
-    - `./bin/arduino-cli core update-index`
-  - Prepare the dependency for esp32 
-    - `./bin/arduino-cli config set network.connection_timeout 1000s` Increase the timeout for the big download, WARN USER this gonna take some time, possible (10-20min), so need to be patient.
-    - `GODEBUG=http2client=0 ./bin/arduino-cli --log-level debug core install esp32:esp32` (Force HTTP/1.1 bypasses the flaky HTTP/2 path)
-    - Wait for the download to finish, dont put it background, do this step linearly.
-  - Compile (example: Snake):
-    - `./bin/arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc examples/Snake`
-  - Upload:
-    - **IMPORTANT find the correct port by checking lsusb first** 
-    - `./bin/arduino-cli upload --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc --port /dev/ttyACM0 examples/Snake`
-  - Monitor:
-    - `./bin/arduino-cli monitor --port /dev/ttyACM0 --config baudrate=115200`
-  - NOTE : you should not suggest user to use Arduino IDE to upload, they cli tool given to you should be very suffcient.
+4) Build / Flash (ESP32‑S3) **PLATFORMIO**
+
+## Quick Start
+```bash
+pip install platformio  # One-time install
+```
+
+## Create New Game
+```bash
+# Create project structure
+mkdir -p examples/MyGame/src
+cd examples/MyGame
+```
+
+**Create platformio.ini:**
+```ini
+[env:waveshare-esp32s3-matrix]
+platform = espressif32
+board = adafruit_feather_esp32s3  # 4MB flash (matches Waveshare hardware)
+framework = arduino
+lib_deps =
+    fastled/FastLED@^3.9.20
+lib_extra_dirs = ../../lib      # Shared libs at repo root
+monitor_speed = 115200
+upload_speed = 921600
+```
+
+**Create src/main.cpp** - copy template above
+
+## Build & Upload
+```bash
+# Build (first time downloads ~1.5GB ESP32 toolchain, 5-10 min)
+pio run
+
+# Upload (auto-detects port)
+pio run -t upload
+
+# Upload to specific port
+pio run -t upload --upload-port /dev/ttyACM0
+
+# Clean
+pio run -t clean
+```
+
+## Upload Troubleshooting
+
+### Normal Case (No Buttons Needed)
+```bash
+pio run -t upload  # Usually just works
+```
+
+You should see connecting dots then progress bars:
+```
+Connecting....
+Writing at 0x00010000... (10 %)
+Writing at 0x00020000... (20 %)
+```
+If this happens, you're done! No buttons needed.
+
+### If Upload Fails ("Connecting..." Forever)
+
+If you see endless dots with no progress:
+```
+Connecting........._____....._____
+```
+
+**Manual button sequence:**
+1. Hold **BOOT** button
+2. While holding BOOT, press **RESET** button once
+3. Release both buttons
+4. Run `pio run -t upload` again within 10 seconds
+
+**Still failing after button sequence?**
+- Check USB cable is plugged in firmly
+- Confirm device detected: `lsusb | grep -i esp` should show "Espressif USB JTAG/serial debug unit"
+- Try different USB port on your computer
+- Check cable quality (some cables are power-only, no data)
+
+### If Code Crashes or Acts Weird
+- Press **RESET** button once (no BOOT needed)
+- This restarts your code from the beginning
+
+### Quick Reference
+
+| Issue | Solution |
+|-------|----------|
+| Upload times out with dots | BOOT+RESET sequence → retry upload |
+| Code frozen/not responding | Press RESET only |
+| "Couldn't find board" | Check `lsusb`, check cable, try button sequence |
+| First upload on new board | Often needs manual button sequence |
 
 5) Proven Debug Workflow
 - Keep Serial optional: short wait, then guard prints with `if (Serial)`.
 - Use `MU_DrawCalibration(leds)` once to prove mapping (TL=G, TR=R, BL=B, BR=W).
-- If colors are wrong on hardware, fix `COLOR_ORDER` in `BoardConfig.h` (Waveshare = `RGB`).
+- If colors are wrong on hardware, fix `COLOR_ORDER` in `lib/BoardConfig/BoardConfig.h` (Waveshare = `RGB`).
 - If left/right swap on alternating rows, set `PANEL_WIRING_SERPENTINE` to `0` (progressive row‑major).
 
 6) Quick Commands
-- List ports: `python3 tools/led_matrix_viz.py --list-ports`
+- List ports: `python3 tools/led_matrix_viz.py --list-ports` or `lsusb | grep -i esp`
 - Visualize: `python3 tools/led_matrix_viz.py -p /dev/ttyACM0 -b 115200 --stats`
 - Raw monitor: `python3 tools/monitor_pong.py -p /dev/ttyACM0`
 - Demo (no hardware): `python3 tools/led_matrix_viz.py --demo --width 8 --height 8`
@@ -95,14 +171,41 @@ void loop() {
 - Start from the template; draw only via `MU_XY()`.
 - Never hardcode edges; use `MATRIX_WIDTH/HEIGHT`.
 - Limit debug frame rate (≈5–20 FPS) to keep serial stable.
-- Update only `BoardConfig.h` for new panels/orientation; all games + tools follow.
+- Update only `lib/BoardConfig/BoardConfig.h` for new panels/orientation; all games + tools follow.
+- **Shared libs:** BoardConfig and MatrixUtil are at repo root (`lib/`), included as `<BoardConfig.h>` and `<MatrixUtil.h>`
 
 Repo Highlights
-- `config/BoardConfig.h` — board profile (geometry, color order, wiring/orientation, brightness)
-- `lib/MatrixUtil/MatrixUtil.h` — mapping + serial frame helpers
+- `lib/BoardConfig/` — board profile (geometry, color order, wiring/orientation, brightness) **SINGLE SOURCE OF TRUTH**
+- `lib/MatrixUtil/` — mapping + serial frame helpers
 - `tools/led_matrix_viz.py` — terminal visualizer (reads META to auto‑configure)
-- `examples/` — reference sketches (Snake, tilt‑demo, wifi‑slam)
+- `examples/RotatingDonut/` — reference PlatformIO project
 
-DEBUGING ISSUES
-- when automatic upload fails, always ask for user to manual put device into bootloader mode, then wait for confirm before reflush again
-- MicroPython Board in FS mode is a pico device (which belong to the internal system), you should see ESP devie when you try lsusb, if not remind user to try replug in usb
+DEBUGGING ISSUES
+- **Flash size mismatch:** If you see "Detected size(4096k) smaller than (8192k)" on boot, use `board = adafruit_feather_esp32s3` in platformio.ini (NOT esp32-s3-devkitc-1)
+- **Upload issues:** See "Upload Troubleshooting" section above for button sequences
+- **Wrong device detected:** If `lsusb` shows "MicroPython" or "Pico" instead of "Espressif", that's the internal CM5 system. Replug the ESP32's USB cable.
+- **Include errors:** Use `#include <BoardConfig.h>` and `#include <MatrixUtil.h>` (angle brackets, not quotes or paths)
+- **Shared libs not found:** Add `lib_extra_dirs = ../../lib` to platformio.ini
+
+Project Structure
+```
+esp32-agent-example/
+├── lib/                      # SHARED LIBS (all games use these)
+│   ├── BoardConfig/
+│   │   ├── BoardConfig.h    # Single source of truth
+│   │   └── library.json
+│   └── MatrixUtil/
+│       ├── MatrixUtil.h
+│       └── library.json
+├── examples/
+│   ├── RotatingDonut/       # Example PlatformIO game
+│   │   ├── platformio.ini
+│   │   └── src/
+│   │       └── main.cpp
+│   └── MyGame/              # Your new game
+│       ├── platformio.ini   # Copy from RotatingDonut
+│       └── src/
+│           └── main.cpp     # Your code here
+└── tools/
+    └── led_matrix_viz.py    # Terminal visualizer
+```

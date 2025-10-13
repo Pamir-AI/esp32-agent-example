@@ -1,0 +1,12 @@
+{
+  "name": "MatrixUtil",
+  "version": "1.0.0",
+  "description": "LED matrix utilities - XY mapping, calibration, serial output for ESP32-S3 games",
+  "keywords": "esp32, led, matrix, fastled, utilities",
+  "dependencies": {
+    "fastled/FastLED": "^3.9.20",
+    "BoardConfig": "*"
+  },
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

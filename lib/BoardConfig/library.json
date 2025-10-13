@@ -1,0 +1,11 @@
+{
+  "name": "BoardConfig",
+  "version": "1.0.0",
+  "description": "ESP32-S3 Matrix board configuration - single source of truth for all games",
+  "keywords": "esp32, led, matrix, config",
+  "dependencies": {
+    "fastled/FastLED": "^3.9.20"
+  },
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}
