@@ -195,6 +195,40 @@ Connecting........._____....._____
 - Update only `lib/BoardConfig/BoardConfig.h` for new panels/orientation; all games + tools follow.
 - **Shared libs:** BoardConfig and MatrixUtil are at repo root (`lib/`), included as `<BoardConfig.h>` and `<MatrixUtil.h>`
 
+## AGENT AUTOMATION INSTRUCTIONS
+
+**Agents MUST automate the complete workflow. Never ask users to run commands manually.**
+
+### Critical Rules
+1. **PATH**: Always prefix pio with `export PATH="/home/distiller/.local/bin:$PATH" &&`
+2. **Directory**: cd into project directory before running pio commands
+3. **Timeouts**: 120000ms for builds (600000ms first time), check for `[SUCCESS]` in output
+4. **Auto-upload**: Always run `pio run -t upload` after building
+
+### Standard Workflow
+```bash
+# User: "create X animation"
+# Agent automatically does:
+mkdir -p examples/X/src
+# Write platformio.ini and src/main.cpp
+cd /home/distiller/projects/esp32-agent-example/examples/X
+export PATH="/home/distiller/.local/bin:$PATH" && pio run
+lsusb | grep -i esp  # Verify ESP32 (should show "Feather ESP32-S3" or "Espressif")
+export PATH="/home/distiller/.local/bin:$PATH" && pio run -t upload
+# Report: "✅ X uploaded successfully!"
+```
+
+### Upload Failure Recovery
+If upload shows endless "Connecting..." dots:
+1. Tell user: "Please press BOOT+RESET: Hold BOOT, press RESET once, release both"
+2. Wait 15 seconds
+3. Auto-retry: `export PATH="/home/distiller/.local/bin:$PATH" && pio run -t upload`
+
+### Quick Checks
+- ✅ Success: Look for `Chip is ESP32-S3`, `Hash of data verified`, `Hard resetting via RTS pin`
+- ❌ Wrong device: lsusb shows "MicroPython" or "Pico" → ask user to replug ESP32 USB
+- ❌ PATH error: `pio: command not found` → missing PATH export
+
 Repo Highlights
 - `lib/BoardConfig/` — board profile (geometry, color order, wiring/orientation, brightness) **SINGLE SOURCE OF TRUTH**
 - `lib/MatrixUtil/` — mapping + serial frame helpers
