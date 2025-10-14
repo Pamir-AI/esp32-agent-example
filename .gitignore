@@ -2,3 +2,36 @@
 .claude/settings.backup
 .claude/current_mode
 .claude/agents/
+
+# PlatformIO
+.pio/
+.vscode/
+.pioenvs/
+.piolibdeps/
+
+# Build artifacts
+*.bin
+*.elf
+*.map
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tool state
+.happy/
+
+# Arduino CLI (legacy)
+bin/arduino-cli

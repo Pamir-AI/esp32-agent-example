@@ -66,10 +66,27 @@ void loop() {
 
 4) Build / Flash (ESP32‑S3) **PLATFORMIO**
 
-## Quick Start
+## Installing PlatformIO (CM5/Raspberry Pi)
+
+**Recommended: Use `uv` (fast & clean)**
 ```bash
-pip install platformio  # One-time install
+# Install uv (modern Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc  # Or restart terminal
+
+# Install PlatformIO
+uv tool install platformio
+
+# Verify
+pio --version
 ```
+
+**Alternative: Quick install (works immediately)**
+```bash
+pip3 install platformio --break-system-packages
+```
+
+**Why uv?** 10-100x faster than pip, handles PATH automatically, keeps Python environment clean. It's the modern standard for installing Python CLI tools.
 
 ## Create New Game
 ```bash
