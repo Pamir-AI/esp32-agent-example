@@ -77,7 +77,11 @@ source ~/.bashrc  # Or restart terminal
 # Install PlatformIO
 uv tool install platformio
 
-# Verify
+# Fix missing pip in uv environment (required for esptoolpy)
+~/.local/share/uv/tools/platformio/bin/python -m ensurepip
+
+# Update PATH and verify
+export PATH="/home/distiller/.local/bin:$PATH"
 pio --version
 ```
 
